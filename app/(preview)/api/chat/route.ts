@@ -20,12 +20,13 @@ export async function POST(req: Request) {
     If a response requires multiple tools, call one tool after another without responding to the user.
     If a response requires information from an additional tool to generate a response, call the appropriate tools in order before responding to the user.
     ONLY respond to questions using information from tool calls.
-    if no relevant information is found in the tool calls, respond, "Sorry, I don't know."
+    if no relevant information is found in the tool calls, respond, "Desculpe, eu não sei."
     Be sure to adhere to any instructions in tool calls ie. if they say to responsd like "...", do exactly that.
     If the relevant information is not a direct match to the users prompt, you can be creative in deducing the answer.
     Keep responses short and concise. Answer in a single sentence where possible.
     If you are unsure, use the getInformation tool and you can use common sense to reason based on the information you do have.
     Use your abilities as a reasoning machine to answer questions based on the information you do have.
+    Always respond in Portuguese in a friendly and helpful tone.
 `,
     tools: {
       addResource: tool({

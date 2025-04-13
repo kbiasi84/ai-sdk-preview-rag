@@ -18,32 +18,31 @@ const ProjectOverview = () => {
           <InformationIcon />
         </p>
         <p>
-          The{" "}
+          O hook{" "}
           <Link
             href="https://sdk.vercel.ai/docs/reference/ai-sdk-ui/use-chat"
             className="text-blue-500"
           >
             useChat
           </Link>{" "}
-          hook along with the{" "}
+          junto com a função{" "}
           <Link
             href="https://sdk.vercel.ai/docs/reference/ai-sdk-core/stream-text"
             className="text-blue-500"
           >
             streamText
           </Link>{" "}
-          function allows you to build applications with retrieval augmented
-          generation (RAG) capabilities. Data is stored as vector embeddings
-          using DrizzleORM and PostgreSQL.
+          permite construir aplicações com capacidades de geração aumentada por recuperação (RAG). 
+          Os dados são armazenados como embeddings vetoriais usando DrizzleORM e PostgreSQL.
         </p>
         <p>
-          Learn how to build this project by following this{" "}
+          Aprenda a construir este projeto seguindo este{" "}
           <Link
             className="text-blue-500"
             href="https://sdk.vercel.ai/docs/guides/rag-chatbot"
             target="_blank"
           >
-            guide
+            guia
           </Link>
           .
         </p>

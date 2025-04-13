@@ -21,7 +21,7 @@ export default function Chat() {
         setToolCall(toolCall.toolName);
       },
       onError: (error) => {
-        toast.error("You've been rate limited, please try again later!");
+        toast.error("Você atingiu o limite de requisições, tente novamente mais tarde!");
       },
     });
 
@@ -87,7 +87,7 @@ export default function Chat() {
                 minLength={3}
                 required
                 value={input}
-                placeholder={"Ask me anything..."}
+                placeholder={"Pergunte-me qualquer coisa..."}
                 onChange={handleInputChange}
               />
             </form>
@@ -148,10 +148,10 @@ const AssistantMessage = ({ message }: { message: Message | undefined }) => {
 const Loading = ({ tool }: { tool?: string }) => {
   const toolName =
     tool === "getInformation"
-      ? "Getting information"
+      ? "Buscando informações"
       : tool === "addResource"
-        ? "Adding information"
-        : "Thinking";
+        ? "Adicionando informações"
+        : "Pensando";
 
   return (
     <AnimatePresence mode="wait">

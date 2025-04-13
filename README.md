@@ -1,48 +1,29 @@
-# AI SDK RAG Template
+Uma aplicação Next.js, alimentada pelo SDK de IA da Vercel, que utiliza geração aumentada por recuperação (RAG) para raciocinar e responder com informações além dos dados de treinamento do modelo.
+Funcionalidades
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fnicoalbanese%2Fai-sdk-rag-template&env=OPENAI_API_KEY&envDescription=You%20will%20need%20an%20OPENAI%20API%20Key.&project-name=ai-sdk-rag&repository-name=ai-sdk-rag&stores=%5B%7B%22type%22%3A%22postgres%22%7D%5D&skippable-integrations=1)
+Recuperação e adição de informações através de chamadas de ferramentas usando a função streamText
+Streaming em tempo real das respostas do modelo para o frontend usando o hook useChat
+Armazenamento de embeddings vetoriais com DrizzleORM e PostgreSQL
+Interface animada com Framer Motion
 
-A [Next.js](https://nextjs.org/) application, powered by the Vercel AI SDK, that uses retrieval-augmented generation (RAG) to reason and respond with information outside of the model's training data.
+Primeiros Passos
+Para colocar o projeto em funcionamento, siga estas etapas:
 
-## Features
+Instale as dependências:
+npm install
 
-- Information retrieval and addition through tool calls using the [`streamText`](https://sdk.vercel.ai/docs/reference/ai-sdk-core/stream-text) function
-- Real-time streaming of model responses to the frontend using the [`useChat`](https://sdk.vercel.ai/docs/reference/ai-sdk-ui/use-chat) hook
-- Vector embedding storage with [DrizzleORM](https://orm.drizzle.team/) and [PostgreSQL](https://www.postgresql.org/)
-- Animated UI with [Framer Motion](https://www.framer.com/motion/)
+Copie o arquivo de ambiente de exemplo:
+cp .env.example .env
 
-## Getting Started
+Adicione sua chave de API OpenAI e string de conexão PostgreSQL ao arquivo .env:
+OPENAI_API_KEY=sua_chave_api_aqui
+DATABASE_URL=sua_string_conexao_postgres_aqui
 
-To get the project up and running, follow these steps:
+Migre o esquema do banco de dados:
+npm run db:migrate
 
-1. Install dependencies:
+Inicie o servidor de desenvolvimento:
+npm run dev
 
-   ```bash
-   npm install
-   ```
 
-2. Copy the example environment file:
-
-   ```bash
-   cp .env.example .env
-   ```
-
-3. Add your OpenAI API key and PostgreSQL connection string to the `.env` file:
-
-   ```
-   OPENAI_API_KEY=your_api_key_here
-   DATABASE_URL=your_postgres_connection_string_here
-   ```
-
-4. Migrate the database schema:
-
-   ```bash
-   npm run db:migrate
-   ```
-
-5. Start the development server:
-   ```bash
-   npm run dev
-   ```
-
-Your project should now be running on [http://localhost:3000](http://localhost:3000).
+Seu projeto deve estar agora em execução em http://localhost:3000.
