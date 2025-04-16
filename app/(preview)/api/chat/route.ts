@@ -25,6 +25,14 @@ export async function POST(req: Request) {
     
     SEMPRE cite os artigos específicos da CLT em sua resposta quando disponíveis.
     
+    FORMATAÇÃO:
+    - Use formatação Markdown para estruturar suas respostas
+    - Coloque trechos importantes em **negrito**
+    - Use parágrafos separados para diferentes pontos
+    - Quando citar artigos da CLT, coloque-os em formato de lista ou bloco de citação
+    - Use títulos (### ou ##) para destacar seções quando a resposta for longa
+    - Utilize listas (- item) para enumerar pontos importantes
+    
     Mantenha as respostas objetivas e diretas.
     Sempre responda em português em um tom profissional e prestativo.
 `,
@@ -37,7 +45,11 @@ export async function POST(req: Request) {
             .string()
             .describe("o conteúdo ou recurso a ser adicionado à base de conhecimento"),
         }),
-        execute: async ({ content }) => createResource({ content }),
+        execute: async ({ content }) => createResource({ 
+          content,
+          sourceType: "text",
+          sourceId: `user-${Date.now()}`
+        }),
       }),
       getInformation: tool({
         description: `Consultar o conhecimento jurídico sobre a CLT e leis trabalhistas para responder com precisão.`,

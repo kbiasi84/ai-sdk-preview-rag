@@ -6,12 +6,12 @@ import { Message } from "ai";
 import { useChat } from "ai/react";
 import { useEffect, useMemo, useRef, useState, useCallback, type ChangeEvent, type KeyboardEvent } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import ReactMarkdown, { Options } from "react-markdown";
 import React from "react";
 import { LoadingIcon, SendIcon } from "@/components/icons";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { Textarea } from "@/components/ui/textarea";
+import { Markdown } from "@/components/ui/markdown";
 
 export default function Chat() {
   const [toolCall, setToolCall] = useState<string>();
@@ -226,7 +226,7 @@ export default function Chat() {
                     }
                   }
                 }}
-                placeholder="Responder ao assistente..."
+                placeholder="Responder ao consultor..."
                 className="flex-1 outline-none bg-transparent resize-none min-h-[40px] max-h-[125px] border-none focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 py-1 dark:placeholder:text-neutral-400 dark:text-neutral-300 text-base md:text-lg"
                 ref={textareaRef}
                 rows={1}
@@ -281,14 +281,12 @@ const AssistantMessage = ({ message }: { message: Message }) => {
 
   return (
     <div
-      className="whitespace-pre-wrap font-mono text-sm text-neutral-800 dark:text-neutral-200 overflow-hidden"
+      className="text-sm text-neutral-800 dark:text-neutral-200 overflow-hidden"
       id="markdown"
     >
-      <MemoizedReactMarkdown
-        className="overflow-y-visible"
-      >
+      <Markdown>
         {message.content}
-      </MemoizedReactMarkdown>
+      </Markdown>
     </div>
   );
 };
@@ -305,10 +303,3 @@ const Loading = ({ tool }: { tool?: string }) => {
     </div>
   );
 };
-
-const MemoizedReactMarkdown: React.FC<Options> = React.memo(
-  ReactMarkdown,
-  (prevProps, nextProps) =>
-    prevProps.children === nextProps.children &&
-    prevProps.className === nextProps.className,
-);
