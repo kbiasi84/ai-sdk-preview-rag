@@ -4,15 +4,23 @@ import React, { useState, useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { createResource, getAllResources, deleteResource } from "@/lib/actions/resources";
+import { 
+  createResource, 
+  getAllResources, 
+  deleteResource,
+  getResourcesBySourceType
+} from "@/lib/actions/resources";
 import { createLink, getAllLinks, deleteLink, refreshLink } from "@/lib/actions/links";
 import { toast } from "sonner";
 import { uploadPdf } from "@/lib/actions/pdf";
+import { SourceType } from "@/lib/db/schema/resources";
 
 // Definindo o tipo para os recursos
 interface Resource {
   id: string;
   content: string;
+  sourceType?: string;
+  sourceId?: string;
   createdAt: Date | string;
   updatedAt: Date | string;
 }
@@ -51,22 +59,35 @@ export default function AdminPage() {
   const [isSubmittingLink, setIsSubmittingLink] = useState(false);
   const [isRefreshingLink, setIsRefreshingLink] = useState<string | null>(null);
 
+  // Sobrescrevendo o estado de recursos para ter recursos por tipo
+  const [textResources, setTextResources] = useState<Resource[]>([]);
+  const [linkResources, setLinkResources] = useState<Resource[]>([]);
+  const [pdfResources, setPdfResources] = useState<Resource[]>([]);
+
   // Tentar verificar autenticação no localStorage
   useEffect(() => {
     const authStatus = localStorage.getItem("admin-auth");
     if (authStatus === "true") {
       setIsAuthenticated(true);
-      loadResources();
+      loadResourcesByType();
       loadLinks();
     } else {
       setIsLoading(false);
     }
   }, []);
 
-  const loadResources = async () => {
+  const loadResourcesByType = async () => {
     setIsLoading(true);
-    const data = await getAllResources();
-    setResources(data);
+    
+    // Buscar recursos por tipo
+    const textData = await getResourcesBySourceType(SourceType.TEXT);
+    const linkData = await getResourcesBySourceType(SourceType.LINK);
+    const pdfData = await getResourcesBySourceType(SourceType.PDF);
+    
+    setTextResources(textData);
+    setLinkResources(linkData);
+    setPdfResources(pdfData);
+    
     setIsLoading(false);
   };
 
@@ -80,7 +101,7 @@ export default function AdminPage() {
     if (password === ADMIN_PASSWORD) {
       setIsAuthenticated(true);
       localStorage.setItem("admin-auth", "true");
-      loadResources();
+      loadResourcesByType();
       loadLinks();
     } else {
       toast.error("Senha incorreta");
@@ -106,13 +127,16 @@ export default function AdminPage() {
         ? `# ${title}\n\n${content}` 
         : content;
         
-      const result = await createResource({ content: fullContent });
+      const result = await createResource({ 
+        content: fullContent,
+        sourceType: SourceType.TEXT 
+      });
       
       if (typeof result === "string" && result.includes("successfully")) {
         toast.success("Conteúdo adicionado com sucesso");
         setContent("");
         setTitle("");
-        loadResources();
+        loadResourcesByType();
       } else {
         toast.error("Erro ao adicionar conteúdo");
       }
@@ -142,7 +166,7 @@ export default function AdminPage() {
       if (result.success) {
         toast.success(result.message);
         setPdfFile(null);
-        loadResources();
+        loadResourcesByType();
       } else {
         toast.error(result.message);
       }
@@ -180,7 +204,7 @@ export default function AdminPage() {
       setLinkTitle("");
       setLinkDescription("");
       loadLinks();
-      loadResources(); // Recarregar recursos pois o conteúdo foi processado
+      loadResourcesByType(); // Atualizar os recursos baseado no tipo
     } catch (error) {
       console.error(error);
       toast.error("Ocorreu um erro ao adicionar o link");
@@ -194,7 +218,7 @@ export default function AdminPage() {
     try {
       const result = await refreshLink(id);
       toast.success("Conteúdo do link atualizado com sucesso");
-      loadResources();
+      loadResourcesByType(); // Atualizar recursos por tipo em vez de todos
     } catch (error) {
       console.error(error);
       toast.error("Falha ao atualizar o conteúdo do link");
@@ -204,11 +228,12 @@ export default function AdminPage() {
   };
 
   const handleDeleteLink = async (id: string) => {
-    if (confirm("Tem certeza que deseja excluir este link? Isso não removerá o conteúdo já processado.")) {
+    if (confirm("Tem certeza que deseja excluir este link? Isso TAMBÉM removerá o conteúdo processado.")) {
       try {
         const result = await deleteLink(id);
-        toast.success("Link excluído com sucesso");
+        toast.success("Link e conteúdo associado excluídos com sucesso");
         loadLinks();
+        loadResourcesByType(); // Recarregar recursos por tipo
       } catch (error) {
         console.error(error);
         toast.error("Erro ao excluir o link");
@@ -221,7 +246,7 @@ export default function AdminPage() {
       const result = await deleteResource(id);
       if (result.includes("sucesso")) {
         toast.success("Recurso excluído com sucesso");
-        loadResources();
+        loadResourcesByType(); // Recarregar recursos por tipo
       } else {
         toast.error("Erro ao excluir o recurso");
       }
@@ -508,50 +533,127 @@ export default function AdminPage() {
             <p className="text-center py-10 text-neutral-500 dark:text-neutral-400">
               Carregando conteúdos...
             </p>
-          ) : resources.length === 0 ? (
-            <p className="text-center py-10 text-neutral-500 dark:text-neutral-400">
-              Nenhum conteúdo encontrado na base de conhecimento.
-            </p>
           ) : (
-            <div className="space-y-4">
-              {resources.map((resource) => (
-                <div
-                  key={resource.id}
-                  className="border border-neutral-200 dark:border-neutral-700 rounded-lg p-4"
-                >
-                  <div className="flex justify-between">
-                    <div className="flex-1">
-                      <p className="text-sm dark:text-neutral-300">
-                        {resource.content.length > 200
-                          ? `${resource.content.substring(0, 200)}...`
-                          : resource.content}
-                      </p>
-                      <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-2">
-                        Adicionado em:{" "}
-                        {new Date(resource.createdAt).toLocaleDateString("pt-BR", {
-                          day: "2-digit",
-                          month: "2-digit",
-                          year: "numeric",
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
-                      </p>
+            <>
+              {/* Renderizar conteúdos com base na aba ativa */}
+              {activeTab === "text" && (
+                <>
+                  <h3 className="text-md font-medium mb-3 dark:text-neutral-300">
+                    Conteúdos Adicionados via Texto
+                  </h3>
+                  {textResources.length === 0 ? (
+                    <p className="text-center py-6 text-neutral-500 dark:text-neutral-400">
+                      Nenhum conteúdo de texto adicionado.
+                    </p>
+                  ) : (
+                    <div className="space-y-4 mb-8">
+                      {textResources.map((resource) => (
+                        <ResourceItem 
+                          key={resource.id} 
+                          resource={resource} 
+                          onDelete={handleDelete} 
+                        />
+                      ))}
                     </div>
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      onClick={() => handleDelete(resource.id)}
-                      className="ml-4 self-start"
-                    >
-                      Excluir
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
+                  )}
+                </>
+              )}
+
+              {activeTab === "pdf" && (
+                <>
+                  <h3 className="text-md font-medium mb-3 dark:text-neutral-300">
+                    Conteúdos Extraídos de PDFs
+                  </h3>
+                  {pdfResources.length === 0 ? (
+                    <p className="text-center py-6 text-neutral-500 dark:text-neutral-400">
+                      Nenhum conteúdo de PDF adicionado.
+                    </p>
+                  ) : (
+                    <div className="space-y-4 mb-8">
+                      {pdfResources.map((resource) => (
+                        <ResourceItem 
+                          key={resource.id} 
+                          resource={resource} 
+                          onDelete={handleDelete} 
+                        />
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
+
+              {activeTab === "link" && (
+                <>
+                  <h3 className="text-md font-medium mb-3 dark:text-neutral-300">
+                    Conteúdos Extraídos de Links
+                  </h3>
+                  {linkResources.length === 0 ? (
+                    <p className="text-center py-6 text-neutral-500 dark:text-neutral-400">
+                      Nenhum conteúdo de link adicionado.
+                    </p>
+                  ) : (
+                    <div className="space-y-4 mb-8">
+                      {linkResources.map((resource) => (
+                        <ResourceItem 
+                          key={resource.id} 
+                          resource={resource} 
+                          onDelete={handleDelete}
+                          hideDelete={true} 
+                        />
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
+            </>
           )}
         </div>
       </main>
     </div>
   );
-} 
+}
+
+// Componente para exibir um item de recurso
+const ResourceItem = ({ 
+  resource, 
+  onDelete,
+  hideDelete = false 
+}: { 
+  resource: Resource; 
+  onDelete: (id: string) => void;
+  hideDelete?: boolean;
+}) => {
+  return (
+    <div className="border border-neutral-200 dark:border-neutral-700 rounded-lg p-4">
+      <div className="flex justify-between">
+        <div className="flex-1">
+          <p className="text-sm dark:text-neutral-300">
+            {resource.content.length > 200
+              ? `${resource.content.substring(0, 200)}...`
+              : resource.content}
+          </p>
+          <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-2">
+            Adicionado em:{" "}
+            {new Date(resource.createdAt).toLocaleDateString("pt-BR", {
+              day: "2-digit",
+              month: "2-digit",
+              year: "numeric",
+              hour: "2-digit",
+              minute: "2-digit",
+            })}
+          </p>
+        </div>
+        {!hideDelete && (
+          <Button
+            variant="destructive"
+            size="sm"
+            onClick={() => onDelete(resource.id)}
+            className="ml-4 self-start"
+          >
+            Excluir
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+}; 

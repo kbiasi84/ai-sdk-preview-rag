@@ -3,11 +3,13 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { createResource } from "./resources";
+import { SourceType } from "@/lib/db/schema/resources";
+import { nanoid } from "@/lib/utils";
 
 // Função para processar o arquivo PDF e extrair seu texto
 export async function processPdfFile(
   file: File
-): Promise<{ success: boolean; message: string }> {
+): Promise<{ success: boolean; message: string; resourceId?: string }> {
   try {
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
@@ -23,13 +25,21 @@ export async function processPdfFile(
     // Formatar o conteúdo para incluir o nome do arquivo como título
     const content = `# ${filename}\n\n${pdfText}`;
     
-    // Adicionar à base de conhecimento
-    const result = await createResource({ content });
+    // Gerar um ID único para o arquivo PDF
+    const pdfId = nanoid();
+    
+    // Adicionar à base de conhecimento com sourceType = PDF
+    const result = await createResource({ 
+      content,
+      sourceType: SourceType.PDF,
+      sourceId: pdfId
+    });
     
     if (typeof result === "string" && result.includes("successfully")) {
       return { 
         success: true, 
-        message: `PDF "${filename}" processado e adicionado com sucesso.` 
+        message: `PDF "${filename}" processado e adicionado com sucesso.`,
+        resourceId: pdfId
       };
     }
     

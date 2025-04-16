@@ -5,11 +5,22 @@ import { z } from "zod";
 
 import { nanoid } from "@/lib/utils";
 
+// Tipo para categorizar a origem do conteúdo
+export const SourceType = {
+  TEXT: 'text',
+  LINK: 'link',
+  PDF: 'pdf'
+} as const;
+
 export const resources = pgTable("resources", {
   id: varchar("id", { length: 191 })
     .primaryKey()
     .$defaultFn(() => nanoid()),
   content: text("content").notNull(),
+  // Novo campo para identificar a origem do conteúdo
+  sourceType: varchar("source_type", { length: 10 }).default(SourceType.TEXT),
+  // Campo opcional para armazenar ID de referência (como ID do link)
+  sourceId: varchar("source_id", { length: 191 }),
 
   createdAt: timestamp("created_at")
     .notNull()

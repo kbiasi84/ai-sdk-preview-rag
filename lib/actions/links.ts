@@ -7,10 +7,11 @@ import { db } from "../db";
 import { links } from "../db/schema/links";
 import type { NewLinkParams } from "../db/schema/links";
 import { insertLinkSchema } from "../db/schema/links";
-import { createResource } from "./resources";
+import { createResource, getResourcesBySourceId, deleteResourcesBySourceId } from "./resources";
 import type { Response as FetchResponse } from "node-fetch";
 import { nanoid } from "@/lib/utils";
 import iconv from "iconv-lite";
+import { SourceType } from "../db/schema/resources";
 
 export const createLink = async (input: NewLinkParams) => {
   try {
@@ -69,8 +70,15 @@ export const getAllLinks = async () => {
 export const deleteLink = async (id: string) => {
   try {
     console.log("Excluindo link:", id);
+    
+    // Primeiro, excluir os resources associados a este link
+    console.log("Excluindo recursos associados ao link...");
+    await deleteResourcesBySourceId(id);
+    
+    // Depois, excluir o link
     await db.delete(links).where(eq(links.id, id));
-    return "Link excluído com sucesso.";
+    
+    return "Link e conteúdo associado excluídos com sucesso.";
   } catch (error) {
     console.error("Erro ao excluir link:", error);
     return "Erro ao excluir o link.";
@@ -80,6 +88,15 @@ export const deleteLink = async (id: string) => {
 export const refreshLink = async (id: string) => {
   try {
     console.log("Atualizando conteúdo do link:", id);
+    
+    // Primeiro, verificar se já existem recursos para este link
+    const existingResources = await getResourcesBySourceId(id);
+    
+    if (existingResources.length > 0) {
+      console.log(`Encontrados ${existingResources.length} recursos existentes para este link. Eles serão excluídos antes da atualização.`);
+      await deleteResourcesBySourceId(id);
+    }
+    
     return await processLinkContent(id);
   } catch (error) {
     console.error("Erro ao atualizar conteúdo do link:", error);
@@ -214,9 +231,13 @@ async function processLinkContent(linkId: string) {
       const content = `# ${link.title}\n\nURL: ${link.url}\n\n${cleanText}`;
       console.log("Conteúdo formatado, tamanho final:", content.length);
       
-      // Adiciona à base de conhecimento
+      // Adiciona à base de conhecimento com tipo e ID de origem
       console.log("Criando recurso na base de conhecimento...");
-      const result = await createResource({ content });
+      const result = await createResource({ 
+        content, 
+        sourceType: SourceType.LINK, 
+        sourceId: linkId 
+      });
       console.log("Recurso criado com sucesso:", result);
       
       // Atualiza o timestamp de processamento

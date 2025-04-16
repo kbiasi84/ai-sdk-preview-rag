@@ -15,6 +15,13 @@
       "when": 1744673439614,
       "tag": "0001_normal_master_mold",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1744824981281,
+      "tag": "0002_tan_mad_thinker",
+      "breakpoints": true
     }
   ]
 }

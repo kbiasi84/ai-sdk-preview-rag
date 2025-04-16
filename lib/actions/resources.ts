@@ -4,6 +4,7 @@ import {
   NewResourceParams,
   insertResourceSchema,
   resources,
+  SourceType
 } from "@/lib/db/schema/resources";
 import { generateEmbeddings } from "../ai/embedding";
 import { db } from "../db";
@@ -13,12 +14,13 @@ import { sql } from "drizzle-orm";
 export const createResource = async (input: NewResourceParams) => {
   try {
     console.log("Iniciando criação do recurso...");
-    const { content } = insertResourceSchema.parse(input);
+    const { content, sourceType = SourceType.TEXT, sourceId } = insertResourceSchema.parse(input);
     console.log(`Tamanho do conteúdo: ${content.length} caracteres`);
+    console.log(`Origem do conteúdo: ${sourceType}, ID: ${sourceId || "N/A"}`);
 
     const [resource] = await db
       .insert(resources)
-      .values({ content })
+      .values({ content, sourceType, sourceId })
       .returning();
     console.log(`Recurso criado com ID: ${resource.id}`);
 
@@ -72,5 +74,46 @@ export const deleteResource = async (id: string) => {
   } catch (error) {
     console.error("Error deleting resource:", error);
     return "Erro ao excluir o recurso.";
+  }
+};
+
+// Buscar recursos pelo tipo de origem
+export const getResourcesBySourceType = async (sourceType: string) => {
+  try {
+    const filteredResources = await db
+      .select()
+      .from(resources)
+      .where(sql`source_type = ${sourceType}`)
+      .orderBy(resources.createdAt);
+    return filteredResources;
+  } catch (error) {
+    console.error(`Error fetching resources of type ${sourceType}:`, error);
+    return [];
+  }
+};
+
+// Buscar recursos pelo ID de origem
+export const getResourcesBySourceId = async (sourceId: string) => {
+  try {
+    const filteredResources = await db
+      .select()
+      .from(resources)
+      .where(sql`source_id = ${sourceId}`)
+      .orderBy(resources.createdAt);
+    return filteredResources;
+  } catch (error) {
+    console.error(`Error fetching resources with sourceId ${sourceId}:`, error);
+    return [];
+  }
+};
+
+// Excluir recursos pelo ID de origem
+export const deleteResourcesBySourceId = async (sourceId: string) => {
+  try {
+    await db.execute(sql`DELETE FROM resources WHERE source_id = ${sourceId}`);
+    return "Recursos associados excluídos com sucesso.";
+  } catch (error) {
+    console.error(`Error deleting resources with sourceId ${sourceId}:`, error);
+    return "Erro ao excluir recursos associados.";
   }
 };
