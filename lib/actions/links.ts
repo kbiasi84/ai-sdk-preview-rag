@@ -10,6 +10,7 @@ import { insertLinkSchema } from "../db/schema/links";
 import { createResource } from "./resources";
 import type { Response as FetchResponse } from "node-fetch";
 import { nanoid } from "@/lib/utils";
+import iconv from "iconv-lite";
 
 export const createLink = async (input: NewLinkParams) => {
   try {
@@ -171,30 +172,28 @@ async function processLinkContent(linkId: string) {
       
       console.log("Status da resposta:", response.status, response.statusText);
       
-      const html = await response.text();
-      console.log("Conteúdo HTML obtido, tamanho:", html.length);
+      // Verificar se é um site do governo brasileiro
+      const isGovernmentalSite = link.url.includes(".gov.br");
+      let html: string;
       
-      // Detectar a codificação do HTML
-      let encoding = 'utf-8';
-      const metaCharset = html.match(/<meta\s+charset=['"]([^'"]+)['"]/i);
-      const metaContentType = html.match(/<meta\s+http-equiv=['"]content-type['"]\s+content=['"][^;]+;\s*charset=([^'"]+)['"]/i);
-      
-      if (metaCharset) {
-        encoding = metaCharset[1].toLowerCase();
-        console.log("Codificação detectada via meta charset:", encoding);
-      } else if (metaContentType) {
-        encoding = metaContentType[1].toLowerCase();
-        console.log("Codificação detectada via meta content-type:", encoding);
+      if (isGovernmentalSite) {
+        // Para sites do governo, assumir ISO-8859-1 (comum em sites legados do governo brasileiro)
+        console.log("Site governamental detectado, usando codificação ISO-8859-1");
+        const buffer = await response.buffer();
+        html = iconv.decode(buffer, 'iso-8859-1');
       } else {
-        console.log("Nenhuma codificação explícita detectada, usando UTF-8 como padrão");
+        // Para outros sites, usar UTF-8 padrão
+        html = await response.text();
       }
       
-      // Carregar HTML com a codificação correta
+      console.log("Conteúdo HTML obtido, tamanho:", html.length);
+      
+      // Carregar HTML com o Cheerio
       const $ = cheerio.load(html, { 
         // @ts-ignore - O tipo não está atualizado, mas a opção é válida
         decodeEntities: false 
       });
-      console.log("HTML carregado com Cheerio usando codificação:", encoding);
+      console.log("HTML carregado com Cheerio");
 
       // Remove elementos desnecessários
       $('script, style, nav, header, footer, iframe, .ads, .banner, .cookie, [class*="cookie"], [id*="cookie"]').remove();
@@ -208,30 +207,12 @@ async function processLinkContent(linkId: string) {
       const cleanText = bodyText
         .replace(/\s+/g, ' ')      // Remove espaços extras
         .replace(/\n+/g, '\n')     // Remove quebras de linha extras
-        .normalize('NFC')          // Normaliza caracteres compostos para forma canônica
-        // Substitui caracteres especiais problemáticos
-        .replace(/[áàâãéêíóôõúüçÁÀÂÃÉÊÍÓÔÕÚÜÇºª§°]/g, char => {
-          // Mapeamento de caracteres especiais
-          const charMap: Record<string, string> = {
-            'á': 'á', 'à': 'à', 'â': 'â', 'ã': 'ã', 'é': 'é', 'ê': 'ê', 'í': 'í', 
-            'ó': 'ó', 'ô': 'ô', 'õ': 'õ', 'ú': 'ú', 'ü': 'ü', 'ç': 'ç',
-            'Á': 'Á', 'À': 'À', 'Â': 'Â', 'Ã': 'Ã', 'É': 'É', 'Ê': 'Ê', 'Í': 'Í', 
-            'Ó': 'Ó', 'Ô': 'Ô', 'Õ': 'Õ', 'Ú': 'Ú', 'Ü': 'Ü', 'Ç': 'Ç',
-            '°': '°', '§': '§', 'ª': 'ª', 'º': 'º', '–': '-', '—': '-'
-          };
-          return charMap[char] || char;
-        })
+        .normalize('NFC')          // Normaliza caracteres compostos
         .trim();
       
       // Formata o conteúdo
       const content = `# ${link.title}\n\nURL: ${link.url}\n\n${cleanText}`;
       console.log("Conteúdo formatado, tamanho final:", content.length);
-      
-      // Verifica e exibe alguns caracteres para debug
-      console.log("Amostra de caracteres especiais no conteúdo:");
-      const specialCharsRegex = /[áàâãéêíóôõúüçÁÀÂÃÉÊÍÓÔÕÚÜÇºª§°]/g;
-      const specialCharsMatch = cleanText.match(specialCharsRegex);
-      console.log("Caracteres especiais encontrados:", specialCharsMatch ? specialCharsMatch.slice(0, 20).join(' ') : "Nenhum");
       
       // Adiciona à base de conhecimento
       console.log("Criando recurso na base de conhecimento...");
