@@ -14,6 +14,7 @@ import { createLink, getAllLinks, deleteLink, refreshLink } from "@/lib/actions/
 import { toast } from "sonner";
 import { uploadPdf } from "@/lib/actions/pdf";
 import { SourceType } from "@/lib/db/schema/resources";
+import { nanoid } from "@/lib/utils";
 
 // Definindo o tipo para os recursos
 interface Resource {
@@ -126,10 +127,14 @@ export default function AdminPage() {
       const fullContent = title.trim() 
         ? `# ${title}\n\n${content}` 
         : content;
+      
+      // Gerar um ID único para o conteúdo de texto, assim como é feito para PDFs
+      const textId = nanoid();
         
       const result = await createResource({ 
         content: fullContent,
-        sourceType: SourceType.TEXT 
+        sourceType: SourceType.TEXT,
+        sourceId: textId
       });
       
       if (typeof result === "string" && result.includes("successfully")) {
@@ -155,7 +160,16 @@ export default function AdminPage() {
       return;
     }
 
+    // Verificar tamanho do arquivo (limitar a 10MB)
+    const maxSizeInBytes = 10 * 1024 * 1024; // 10MB
+    if (pdfFile.size > maxSizeInBytes) {
+      toast.error(`O arquivo é muito grande. O tamanho máximo permitido é 10MB.`);
+      return;
+    }
+
     setIsUploadingPdf(true);
+    const toastId = toast.loading("Processando PDF, isso pode levar alguns segundos...");
+    
     try {
       const formData = new FormData();
       formData.append("file", pdfFile);
@@ -163,14 +177,22 @@ export default function AdminPage() {
       // Usar Server Action diretamente em vez de API Route
       const result = await uploadPdf(formData);
 
+      toast.dismiss(toastId);
+      
       if (result.success) {
         toast.success(result.message);
         setPdfFile(null);
+        
+        // Limpar o input file
+        const fileInput = document.getElementById('pdf-file') as HTMLInputElement;
+        if (fileInput) fileInput.value = '';
+        
         loadResourcesByType();
       } else {
-        toast.error(result.message);
+        toast.error(result.message || "Erro ao processar o PDF");
       }
     } catch (error) {
+      toast.dismiss(toastId);
       console.error("Erro no upload do PDF:", error);
       toast.error("Ocorreu um erro ao fazer upload do PDF");
     } finally {
@@ -180,7 +202,19 @@ export default function AdminPage() {
 
   const handlePdfFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
-      setPdfFile(e.target.files[0]);
+      const file = e.target.files[0];
+      
+      // Verificar se o arquivo é realmente um PDF antes de definir o estado
+      if (!file.type.includes("pdf") && !file.name.toLowerCase().endsWith(".pdf")) {
+        toast.error("O arquivo selecionado não parece ser um PDF válido");
+        // Limpar o input
+        e.target.value = '';
+        return;
+      }
+      
+      setPdfFile(file);
+    } else {
+      setPdfFile(null);
     }
   };
 
@@ -383,7 +417,7 @@ export default function AdminPage() {
                   <Input
                     id="pdf-file"
                     type="file"
-                    accept=".pdf"
+                    accept=".pdf,application/pdf"
                     onChange={handlePdfFileChange}
                     className="flex-1"
                     required
@@ -395,7 +429,7 @@ export default function AdminPage() {
                   </p>
                 )}
                 <p className="text-xs text-gray-500 mt-1 dark:text-neutral-400">
-                  Upload de arquivos PDF para extração automática de texto.
+                  Upload de arquivos PDF para extração automática de texto. Tamanho máximo: 10MB.
                 </p>
               </div>
               <Button type="submit" disabled={isUploadingPdf || !pdfFile}>
@@ -571,11 +605,45 @@ export default function AdminPage() {
                   ) : (
                     <div className="space-y-4 mb-8">
                       {pdfResources.map((resource) => (
-                        <ResourceItem 
+                        <div 
                           key={resource.id} 
-                          resource={resource} 
-                          onDelete={handleDelete} 
-                        />
+                          className="border border-neutral-200 dark:border-neutral-700 rounded-lg p-4"
+                        >
+                          <div className="flex justify-between">
+                            <div className="flex-1">
+                              {/* Extrair o título do conteúdo (primeira linha com #) */}
+                              <h4 className="font-medium text-base mb-1">
+                                {resource.content.split('\n')[0].replace(/^#\s+/, '')}
+                              </h4>
+                              
+                              {/* Mostrar metadados do PDF */}
+                              <div className="text-xs text-neutral-500 dark:text-neutral-400 mb-2">
+                                {resource.content.split('\n').slice(2, 5).map((line, idx) => (
+                                  <div key={idx}>{line}</div>
+                                ))}
+                              </div>
+                              
+                              <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-2">
+                                Adicionado em:{" "}
+                                {new Date(resource.createdAt).toLocaleDateString("pt-BR", {
+                                  day: "2-digit",
+                                  month: "2-digit",
+                                  year: "numeric",
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })}
+                              </p>
+                            </div>
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              onClick={() => handleDelete(resource.id)}
+                              className="ml-4 self-start"
+                            >
+                              Excluir
+                            </Button>
+                          </div>
+                        </div>
                       ))}
                     </div>
                   )}

@@ -32,12 +32,16 @@ export const resources = pgTable("resources", {
 
 // Schema for resources - used to validate API requests
 export const insertResourceSchema = createSelectSchema(resources)
-  .extend({})
   .omit({
     id: true,
     createdAt: true,
     updatedAt: true,
   });
 
+// Modifica o schema para tornar sourceId realmente opcional
+export const insertResourceSchemaWithOptionalSourceId = insertResourceSchema.partial({
+  sourceId: true
+});
+
 // Type for resources - used to type API request params and within Components
-export type NewResourceParams = z.infer<typeof insertResourceSchema>;
+export type NewResourceParams = z.infer<typeof insertResourceSchemaWithOptionalSourceId>;

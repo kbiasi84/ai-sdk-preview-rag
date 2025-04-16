@@ -2,7 +2,7 @@
 
 import {
   NewResourceParams,
-  insertResourceSchema,
+  insertResourceSchemaWithOptionalSourceId,
   resources,
   SourceType
 } from "@/lib/db/schema/resources";
@@ -14,40 +14,52 @@ import { sql } from "drizzle-orm";
 export const createResource = async (input: NewResourceParams) => {
   try {
     console.log("Iniciando criação do recurso...");
-    const { content, sourceType = SourceType.TEXT, sourceId } = insertResourceSchema.parse(input);
-    console.log(`Tamanho do conteúdo: ${content.length} caracteres`);
-    console.log(`Origem do conteúdo: ${sourceType}, ID: ${sourceId || "N/A"}`);
-
-    const [resource] = await db
-      .insert(resources)
-      .values({ content, sourceType, sourceId })
-      .returning();
-    console.log(`Recurso criado com ID: ${resource.id}`);
-
-    console.log("Gerando embeddings para o conteúdo...");
-    const embeddings = await generateEmbeddings(content);
-    console.log(`Gerados ${embeddings.length} fragmentos de embeddings`);
-
-    // Inserir embeddings em lotes para evitar exceder limites
-    const batchSize = 100;
-    for (let i = 0; i < embeddings.length; i += batchSize) {
-      const batch = embeddings.slice(i, i + batchSize);
-      console.log(`Inserindo lote de embeddings ${i + 1}-${i + batch.length} de ${embeddings.length}`);
+    console.log("Input recebido:", JSON.stringify(input));
+    
+    try {
+      // Usar o schema com sourceId opcional
+      const parsed = insertResourceSchemaWithOptionalSourceId.parse(input);
+      console.log("Schema validado com sucesso:", JSON.stringify(parsed));
       
-      await db.insert(embeddingsTable).values(
-        batch.map((embedding) => ({
-          resourceId: resource.id,
-          ...embedding,
-        })),
-      );
-      
-      if (i + batchSize < embeddings.length) {
-        console.log("Pausa entre lotes para evitar sobrecarga...");
-        await new Promise(resolve => setTimeout(resolve, 500));
+      const { content, sourceType = SourceType.TEXT, sourceId } = parsed;
+      console.log(`Tamanho do conteúdo: ${content.length} caracteres`);
+      console.log(`Origem do conteúdo: ${sourceType}, ID: ${sourceId || "N/A"}`);
+
+      const [resource] = await db
+        .insert(resources)
+        .values({ content, sourceType, sourceId })
+        .returning();
+      console.log(`Recurso criado com ID: ${resource.id}`);
+
+      console.log("Gerando embeddings para o conteúdo...");
+      const embeddings = await generateEmbeddings(content);
+      console.log(`Gerados ${embeddings.length} fragmentos de embeddings`);
+
+      // Inserir embeddings em lotes para evitar exceder limites
+      const batchSize = 100;
+      for (let i = 0; i < embeddings.length; i += batchSize) {
+        const batch = embeddings.slice(i, i + batchSize);
+        console.log(`Inserindo lote de embeddings ${i + 1}-${i + batch.length} de ${embeddings.length}`);
+        
+        await db.insert(embeddingsTable).values(
+          batch.map((embedding) => ({
+            resourceId: resource.id,
+            ...embedding,
+          })),
+        );
+        
+        if (i + batchSize < embeddings.length) {
+          console.log("Pausa entre lotes para evitar sobrecarga...");
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
       }
+      console.log("Todos os embeddings foram inseridos com sucesso");
+      return "Resource successfully created and embedded.";
+    } catch (parseError) {
+      console.error("Erro na validação do schema:", parseError);
+      console.error("Detalhes da validação:", (parseError as Error).message);
+      throw parseError;
     }
-    console.log("Todos os embeddings foram inseridos com sucesso");
-    return "Resource successfully created and embedded.";
   } catch (error) {
     console.error("Erro ao criar recurso:", error);
     return error instanceof Error && error.message.length > 0
