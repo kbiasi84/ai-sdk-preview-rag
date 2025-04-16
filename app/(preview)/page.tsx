@@ -1,16 +1,17 @@
 "use client";
 
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { Message } from "ai";
 import { useChat } from "ai/react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback, type ChangeEvent, type KeyboardEvent } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import ReactMarkdown, { Options } from "react-markdown";
 import React from "react";
-import ProjectOverview from "@/components/project-overview";
-import { LoadingIcon } from "@/components/icons";
+import { LoadingIcon, SendIcon } from "@/components/icons";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { Textarea } from "@/components/ui/textarea";
 
 export default function Chat() {
   const [toolCall, setToolCall] = useState<string>();
@@ -26,152 +27,282 @@ export default function Chat() {
     });
 
   const [isExpanded, setIsExpanded] = useState<boolean>(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const [buttonPosition, setButtonPosition] = useState({ top: 11 });
+
+  const autoResizeTextarea = useCallback((e: ChangeEvent<HTMLTextAreaElement> | { target: HTMLTextAreaElement | null }) => {
+    const target = e.target;
+    if (!target) return;
+    
+    target.style.height = "auto";
+    target.style.height = `${target.scrollHeight}px`;
+    
+    const cursorPosition = target.selectionStart;
+    const textUpToCursor = target.value.substring(0, cursorPosition || 0);
+    const lineBreaksBeforeCursor = (textUpToCursor.match(/\n/g) || []).length;
+    
+    // Calculate button position based on cursor position
+    const lineHeight = 21; // Approximate line height in pixels
+    const paddingTop = 12; // Equal to py-3 (12px)
+    
+    const topPosition = paddingTop + lineBreaksBeforeCursor * lineHeight;
+    setButtonPosition({ top: topPosition });
+  }, []);
+
+  // Handler customizado para input que aciona o redimensionamento
+  const handleTextareaChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    handleInputChange(e);
+    
+    // Ajustar altura do textarea
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    
+    // Reset height para calcular corretamente
+    textarea.style.height = 'auto';
+    
+    // Limitar a altura máxima (5 linhas aproximadamente)
+    const maxHeight = 125; // Aproximadamente 5 linhas
+    
+    // Definir a altura com base no conteúdo, limitada pelo maxHeight
+    if (textarea.scrollHeight <= maxHeight) {
+      textarea.style.height = `${textarea.scrollHeight}px`;
+      textarea.style.overflowY = 'hidden';
+    } else {
+      textarea.style.height = `${maxHeight}px`;
+      textarea.style.overflowY = 'auto';
+    }
+  }, [handleInputChange]);
+
+  // Quando o componente montar, ajustar a altura inicial do textarea
+  useEffect(() => {
+    if (textareaRef.current) {
+      // Definir altura inicial mínima
+      textareaRef.current.style.height = '40px';
+      
+      // Se já houver conteúdo, ajustar a altura
+      if (input) {
+        const textarea = textareaRef.current;
+        textarea.style.height = 'auto';
+        textarea.style.height = `${Math.min(textarea.scrollHeight, 125)}px`;
+      }
+    }
+  }, [input]);
 
   useEffect(() => {
     if (messages.length > 0) setIsExpanded(true);
   }, [messages]);
 
+  // Limpar o toolCall quando uma nova mensagem do assistente for recebida
+  useEffect(() => {
+    const lastMessage = messages[messages.length - 1];
+    if (lastMessage && lastMessage.role === 'assistant') {
+      setToolCall(undefined);
+    }
+  }, [messages]);
+
+  // Scroll para o final quando novas mensagens são adicionadas
+  useEffect(() => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [messages]);
+
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.focus();
+    }
+  }, []);
+
   const currentToolCall = useMemo(() => {
+    // Se não estiver carregando, não mostramos nenhum toolCall
+    if (!isLoading) return undefined;
+    
     const tools = messages?.slice(-1)[0]?.toolInvocations;
     if (tools && toolCall === tools[0].toolName) {
       return tools[0].toolName;
-    } else {
-      return undefined;
     }
-  }, [toolCall, messages]);
+    return undefined;
+  }, [toolCall, messages, isLoading]);
 
   const awaitingResponse = useMemo(() => {
-    if (
-      isLoading &&
-      currentToolCall === undefined &&
-      messages.slice(-1)[0].role === "user"
-    ) {
+    // Se não estiver carregando, não estamos aguardando resposta
+    if (!isLoading) return false;
+    
+    // Se a última mensagem foi do usuário e não temos um toolCall atual,
+    // então estamos aguardando a resposta inicial
+    if (currentToolCall === undefined && 
+        messages.length > 0 && 
+        messages[messages.length - 1].role === "user") {
       return true;
-    } else {
-      return false;
     }
+    return false;
   }, [isLoading, currentToolCall, messages]);
 
-  const userQuery: Message | undefined = messages
-    .filter((m) => m.role === "user")
-    .slice(-1)[0];
-
-  const lastAssistantMessage: Message | undefined = messages
-    .filter((m) => m.role !== "user")
-    .slice(-1)[0];
-
   return (
-    <div className="flex justify-center items-start sm:pt-16 min-h-screen w-full dark:bg-neutral-900 px-4 md:px-0 py-4">
-      <div className="flex flex-col items-center w-full max-w-[500px]">
-      <ProjectOverview />
-      <motion.div
-          animate={{
-            minHeight: isExpanded ? 200 : 0,
-            padding: isExpanded ? 12 : 0,
-          }}
-          transition={{
-            type: "spring",
-            bounce: 0.5,
-          }}
-          className={cn(
-            "rounded-lg w-full ",
-            isExpanded
-              ? "bg-neutral-200 dark:bg-neutral-800"
-              : "bg-transparent",
-          )}
-        >
-          <div className="flex flex-col w-full justify-between gap-2">
-            <form onSubmit={handleSubmit} className="flex space-x-2">
-              <Input
-                className={`bg-neutral-100 text-base w-full text-neutral-700 dark:bg-neutral-700 dark:placeholder:text-neutral-400 dark:text-neutral-300`}
+    <div className="flex flex-col justify-between min-h-[calc(100vh-3.5rem)] w-full dark:bg-neutral-900">
+      <div className="flex justify-center items-start w-full flex-grow">
+        <div className="flex flex-col items-center w-full max-w-[700px] px-4 py-4">
+          
+          <motion.div
+            animate={{
+              minHeight: isExpanded ? 400 : 0,
+            }}
+            transition={{
+              type: "spring",
+              bounce: 0.5,
+            }}
+            className={cn(
+              "rounded-lg w-full mb-4 overflow-y-auto p-4",
+              isExpanded ? "block" : "hidden"
+            )}
+            style={{ maxHeight: "calc(100vh - 240px)" }}
+          >
+            {messages.length > 0 ? (
+              <div className="flex flex-col gap-6">
+                {messages.map((message, index) => (
+                  <div 
+                    key={message.id}
+                    className={cn(
+                      "flex flex-col",
+                      message.role === "user" ? "items-end" : "items-start"
+                    )}
+                  >
+                    <div 
+                      className={cn(
+                        "rounded-lg py-2 px-3 max-w-[85%]",
+                        message.role === "user" 
+                          ? "bg-blue-500 text-white" 
+                          : "bg-neutral-300 dark:bg-neutral-700"
+                      )}
+                    >
+                      {message.role === "user" ? (
+                        <div className="text-sm">{message.content}</div>
+                      ) : (
+                        <AssistantMessage message={message} />
+                      )}
+                    </div>
+                  </div>
+                ))}
+                
+                {(awaitingResponse || currentToolCall) && (
+                  <div className="flex items-start">
+                    <div className="rounded-lg py-2 px-3 bg-neutral-300 dark:bg-neutral-700">
+                      <Loading tool={currentToolCall} />
+                    </div>
+                  </div>
+                )}
+                
+                <div ref={messagesEndRef} />
+              </div>
+            ) : (
+              <div className="text-center text-neutral-500 dark:text-neutral-400 py-8">
+                Inicie uma conversa fazendo uma pergunta.
+              </div>
+            )}
+          </motion.div>
+        </div>
+      </div>
+      
+      {/* Barra de entrada fixa na parte inferior */}
+      <div className="sticky bottom-0 w-full bg-white dark:bg-neutral-900 border-t border-neutral-200 dark:border-neutral-800 py-4">
+        <div className="max-w-[700px] mx-auto px-4">
+          <form onSubmit={handleSubmit} className="flex items-center space-x-2 relative">
+            <div className="flex-1 bg-neutral-100 dark:bg-neutral-700 flex items-start pr-12 pl-3 py-2 relative rounded-2xl">
+              <Textarea
+                value={input}
+                onChange={handleTextareaChange}
+                onKeyDown={(e: KeyboardEvent<HTMLTextAreaElement>) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    if (input.trim() && !isLoading) {
+                      handleSubmit(e as unknown as React.FormEvent<HTMLFormElement>);
+                      
+                      // Reset altura após enviar mensagem
+                      if (textareaRef.current) {
+                        textareaRef.current.style.height = '40px';
+                      }
+                    }
+                  }
+                }}
+                placeholder="Responder ao assistente..."
+                className="flex-1 outline-none bg-transparent resize-none min-h-[40px] max-h-[125px] border-none focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 py-1 dark:placeholder:text-neutral-400 dark:text-neutral-300 text-base md:text-lg"
+                ref={textareaRef}
+                rows={1}
                 minLength={3}
                 required
-                value={input}
-                placeholder={"Pergunte-me qualquer coisa..."}
-                onChange={handleInputChange}
+                style={{ height: '40px', overflowY: 'hidden', fontSize: '16px' }}
               />
-            </form>
-            <motion.div
-              transition={{
-                type: "spring",
-              }}
-              className="min-h-fit flex flex-col gap-2"
-            >
-              <AnimatePresence>
-                {awaitingResponse || currentToolCall ? (
-                  <div className="px-2 min-h-12">
-                    <div className="dark:text-neutral-400 text-neutral-500 text-sm w-fit mb-1">
-                      {userQuery.content}
-                    </div>
-                    <Loading tool={currentToolCall} />
-                  </div>
-                ) : lastAssistantMessage ? (
-                  <div className="px-2 min-h-12">
-                    <div className="dark:text-neutral-400 text-neutral-500 text-sm w-fit mb-1">
-                      {userQuery.content}
-                    </div>
-                    <AssistantMessage message={lastAssistantMessage} />
-                  </div>
-                ) : null}
-              </AnimatePresence>
-            </motion.div>
-          </div>
-        </motion.div>
+              <div className="absolute right-1 bottom-1 p-1">
+                <Button 
+                  type="submit" 
+                  className="p-2 rounded-full bg-green-500 hover:bg-green-600 text-white flex items-center justify-center"
+                  disabled={!input.trim() || isLoading}
+                  ref={buttonRef}
+                >
+                  <SendIcon size={20} />
+                </Button>
+              </div>
+            </div>
+          </form>
+        </div>
       </div>
+      
+      <style jsx global>{`
+        textarea {
+          scrollbar-width: thin;
+          scrollbar-color: rgba(203, 213, 224, 0.6) transparent;
+        }
+        
+        textarea::-webkit-scrollbar {
+          width: 6px;
+        }
+        
+        textarea::-webkit-scrollbar-thumb {
+          background-color: rgba(203, 213, 224, 0.6);
+          border-radius: 3px;
+        }
+        
+        .dark textarea {
+          scrollbar-color: rgba(75, 85, 99, 0.6) transparent;
+        }
+        
+        .dark textarea::-webkit-scrollbar-thumb {
+          background-color: rgba(75, 85, 99, 0.6);
+        }
+      `}</style>
     </div>
   );
 }
 
-const AssistantMessage = ({ message }: { message: Message | undefined }) => {
-  if (message === undefined) return "HELLO";
+const AssistantMessage = ({ message }: { message: Message }) => {
+  if (message === undefined) return null;
 
   return (
-    <AnimatePresence mode="wait">
-      <motion.div
-        key={message.id}
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        className="whitespace-pre-wrap font-mono anti text-sm text-neutral-800 dark:text-neutral-200 overflow-hidden"
-        id="markdown"
+    <div
+      className="whitespace-pre-wrap font-mono text-sm text-neutral-800 dark:text-neutral-200 overflow-hidden"
+      id="markdown"
+    >
+      <MemoizedReactMarkdown
+        className="overflow-y-visible"
       >
-        <MemoizedReactMarkdown
-          className={"max-h-72 overflow-y-scroll no-scrollbar-gutter"}
-        >
-          {message.content}
-        </MemoizedReactMarkdown>
-      </motion.div>
-    </AnimatePresence>
+        {message.content}
+      </MemoizedReactMarkdown>
+    </div>
   );
 };
 
 const Loading = ({ tool }: { tool?: string }) => {
-  const toolName =
-    tool === "getInformation"
-      ? "Buscando informações"
-      : tool === "addResource"
-        ? "Adicionando informações"
-        : "Pensando";
-
   return (
-    <AnimatePresence mode="wait">
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        transition={{ type: "spring" }}
-        className="overflow-hidden flex justify-start items-center"
-      >
-        <div className="flex flex-row gap-2 items-center">
-          <div className="animate-spin dark:text-neutral-400 text-neutral-500">
-            <LoadingIcon />
-          </div>
-          <div className="text-neutral-500 dark:text-neutral-400 text-sm">
-            {toolName}...
-          </div>
-        </div>
-      </motion.div>
-    </AnimatePresence>
+    <div className="flex flex-row gap-2 items-center">
+      <div className="animate-spin dark:text-neutral-400 text-neutral-500">
+        <LoadingIcon />
+      </div>
+      <div className="text-neutral-500 dark:text-neutral-400 text-sm">
+        Pensando...
+      </div>
+    </div>
   );
 };
 

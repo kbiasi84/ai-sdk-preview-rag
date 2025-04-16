@@ -5,6 +5,11 @@ import { migrate } from "drizzle-orm/postgres-js/migrator";
 import postgres from "postgres";
 import "dotenv/config";
 
+// Importando todos os esquemas para garantir que estejam disponíveis durante a migração
+import "./schema/resources";
+import "./schema/embeddings";
+import "./schema/links";
+
 const runMigrate = async () => {
   if (!env.DATABASE_URL) {
     throw new Error("DATABASE_URL is not defined");

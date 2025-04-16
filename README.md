@@ -27,3 +27,8 @@ npm run dev
 
 
 Seu projeto deve estar agora em execução em http://localhost:3000.
+
+sequencia para enviar para github
+git add . para adicionar as alterações
+git commit -m "Mensagem descritiva" para criar um commit
+git push para enviar ao GitHub
